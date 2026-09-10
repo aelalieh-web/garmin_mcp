@@ -5,6 +5,42 @@ All notable changes **this fork** makes relative to its upstream base,
 invariants behind these and the upstream-sync procedure. The authoritative diff is
 `git diff upstream/main...main` once the upstream remote is wired.
 
+## Upstream sync 2026-09-10 — 9 commits, 2 new tools
+
+**New tools:** `get_stats_range` (multi-day calorie/step totals, 28-day cap) and
+`get_nutrition_summary_between_dates` (multi-day intake totals, 61-day cap).
+Both replace "call the single-day tool once per day" loops.
+
+**Fixes taken:** nightly HRV and period averages now populate; a night with null
+sleep-phase breakdowns no longer crashes; nutrition goals read `calorieGoal` and
+nested `macroGoals` rather than the old flat fields, and verify the write;
+progress-summary calorie units corrected with misleading fields dropped; strength
+workouts compare exercises by index for the rest-step skip; Garmin exception
+translation keeps the original message; `endConditionZone` documented.
+
+**The documented-count guard fired on its first sync**, which is what it was
+added for. Four tests failed the moment the merge landed — `CLAUDE.md`,
+`FORK.md`, and both README count claims — because the tool total moved 164 → 166
+and nothing in the merge updates prose. Previously that drift was silent and
+accumulated for months; here it was a red suite before the branch was pushed.
+
+**Conflicts (3), all the same shape as the last sync:** upstream inserts a new
+tool immediately before an existing one whose signature this fork changed to
+thread `ctx`, so the boundary collides. Took upstream's new tool and restored our
+signature in each case. The one exception was the nutrition settings writer,
+where upstream's version is a genuine fix and was taken whole; its two
+`garmin_client.` calls were normalised to the `client` the function had already
+resolved, since mixing both in one body reads as though they differ.
+
+No new path-shaped parameters, so the remote-mode tripwire stayed quiet.
+
+Having hit the same conflict shape twice running, `FORK.md` now records it with
+the mechanical resolution, and adds the tool modules to its conflict-prone list —
+the list previously named only infrastructure files, while both recent syncs
+actually collided in `health_wellness.py`, `nutrition.py` and `courses.py`.
+
+Result: 746 passed. Tool counts stdio 166 / remote 164.
+
 ## Live-auth tests are provably excluded from CI — 2026-09-02
 
 Two CodeQL alerts were dismissed on the grounds that the tests involved never run

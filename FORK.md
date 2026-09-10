@@ -248,7 +248,30 @@ git push -u origin sync-upstream-$(date +%Y%m%d)
 **Conflict-prone files** (this fork customized them, so upstream edits here often
 collide): `src/garmin_mcp/__init__.py`, `remote.py`, `oauth_provider.py`,
 `config.py`, `token_utils.py`, `session_manager.py`, `pyproject.toml`,
-`Dockerfile.remote`.
+`Dockerfile.remote`. Add to those the **tool modules**, which conflicted in both
+the 2026-09-02 and 2026-09-10 syncs for the reason below: `health_wellness.py`,
+`nutrition.py`, `courses.py`, `training.py`, `workouts.py`.
+
+**The recurring conflict, and how to resolve it.** Two syncs running, most
+conflicts were the same shape and are not real disagreements. Upstream inserts a
+new tool immediately *before* an existing one, and the existing one's signature
+differs here because this fork threads `ctx` into it. Git sees the new tool and
+the changed signature line as one overlapping hunk:
+
+```
+<<<<<<< HEAD
+    async def get_user_summary(ctx: Context, date: str) -> str:     <- ours
+=======
+    ...upstream's entire new tool...
+    async def get_user_summary(date: str) -> str:                   <- theirs
+>>>>>>> upstream/main
+```
+
+The resolution is mechanical: **take upstream's block, drop its last line, and
+restore our signature line.** Nothing else in the hunk is in dispute. Judge each
+hunk before applying it though — in the 2026-09-10 sync one conflict in
+`nutrition.py` looked identical but was a genuine upstream bug fix that had to be
+taken whole.
 
 **Watch items during conflict resolution:**
 
@@ -271,12 +294,12 @@ collide): `src/garmin_mcp/__init__.py`, `remote.py`, `oauth_provider.py`,
     path in remote mode. Do not add it to `_GUARDED` to make the test pass —
     `_GUARDED` records tools that already refuse.
 
-**Definition of done:** suite green, invariants intact, tool counts stdio 164 / remote 162.
+**Definition of done:** suite green, invariants intact, tool counts stdio 166 / remote 164.
 
 ## Expected state after a clean build
 
-- Full suite: `uv run pytest -m "not e2e"` → all pass (718 at time of writing).
-- Tool counts: **stdio 164**, **remote 162** (auth tools are stdio-only).
+- Full suite: `uv run pytest -m "not e2e"` → all pass (746 at time of writing).
+- Tool counts: **stdio 166**, **remote 164** (auth tools are stdio-only).
 - Documented counts are test-enforced: `tests/unit/test_documented_counts.py`
   fails when `CLAUDE.md`, `FORK.md` or `README.md` disagrees with the tools
   actually registered, so these figures cannot silently rot again.
@@ -286,6 +309,7 @@ collide): `src/garmin_mcp/__init__.py`, `remote.py`, `oauth_provider.py`,
 Integrated via PRs #1–#6 on this fork, then synced with upstream on 2026-06-17
 (upstream PRs #140/#141/#142, Issues #137/#138/#139), and again on 2026-09-02
 (17 upstream commits: 10 new tools, 7 fixes — the first sync after the
-stdio/remote split was collapsed, and the first needing no tool migration). See `CHANGELOG.md` for a
+stdio/remote split was collapsed, and the first needing no tool migration), and
+on 2026-09-10 (9 upstream commits: 2 new tools, 7 fixes). See `CHANGELOG.md` for a
 categorized list of every change relative to upstream, and `README.md` (Remote
 Mode, Security, Token import / refresh) for operational detail.
