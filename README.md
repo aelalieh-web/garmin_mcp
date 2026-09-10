@@ -24,17 +24,17 @@ Garmin's API is accessed via the awesome [python-garminconnect](https://github.c
 
 ### Tool Coverage
 
-This MCP server implements **~164 tools** covering ~90% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.3.5):
+This MCP server implements **~166 tools** covering ~90% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.3.5):
 
 - ✅ Activity Management (21 tools) - includes write tools for type, description, event type, perceived effort, and feel
-- ✅ Health & Wellness (32 tools) - includes custom lightweight summary tools
+- ✅ Health & Wellness (33 tools) - includes custom lightweight summary tools and multi-day calorie/step totals
 - ✅ Training & Performance (18 tools) - includes CTL/ATL/TSB, HRV, VO2 max and respiration trends, heat/altitude acclimation, and running tolerance
 - ✅ Workouts (17 tools) - includes training plan discovery and detail
 - ✅ Devices (6 tools)
 - ✅ Gear Management (4 tools) - includes per-gear activity lists for mileage auditing
 - ✅ Weight Tracking (5 tools)
 - ✅ Challenges & Badges (9 tools)
-- ✅ Nutrition (14 tools) - food logs, meals, custom foods, and food logging
+- ✅ Nutrition (15 tools) - food logs, meals, custom foods, food logging, and multi-day intake summaries
 - ✅ Data Management (3 tools) - bulk export helpers
 - ✅ Women's Health (3 tools)
 - ✅ Calendar (1 tool) - races and events from the Garmin calendar
@@ -111,7 +111,7 @@ The repo ships a `railway.json` pinned to `Dockerfile.remote`, so Railway deploy
 
 ## Tool Filtering
 
-This server registers ~164 tools by default, which can be a lot of context for
+This server registers ~166 tools by default, which can be a lot of context for
 an LLM to carry in every session. You can expose only the tools you need with
 two optional environment variables:
 
@@ -256,6 +256,22 @@ Use ID `6` for heart rate:
   "endConditionValue": 145
 }
 ```
+
+For a zone-based heart-rate end condition, use `endConditionZone` (1-5) on the
+same `endCondition` object and omit `endConditionValue`. If both are sent,
+Garmin keeps the zone and drops the value (verified against the production API
+on 2026-09-01):
+
+```json
+{
+  "endCondition": {
+    "conditionTypeId": 6,
+    "conditionTypeKey": "heart.rate",
+    "endConditionZone": 2
+  }
+}
+```
+
 
 Common end-condition IDs:
 
