@@ -34,6 +34,11 @@ resolved, since mixing both in one body reads as though they differ.
 
 No new path-shaped parameters, so the remote-mode tripwire stayed quiet.
 
+Having hit the same conflict shape twice running, `FORK.md` now records it with
+the mechanical resolution, and adds the tool modules to its conflict-prone list —
+the list previously named only infrastructure files, while both recent syncs
+actually collided in `health_wellness.py`, `nutrition.py` and `courses.py`.
+
 Result: 746 passed. Tool counts stdio 166 / remote 164.
 
 ## Live-auth tests are provably excluded from CI — 2026-09-02

@@ -248,7 +248,30 @@ git push -u origin sync-upstream-$(date +%Y%m%d)
 **Conflict-prone files** (this fork customized them, so upstream edits here often
 collide): `src/garmin_mcp/__init__.py`, `remote.py`, `oauth_provider.py`,
 `config.py`, `token_utils.py`, `session_manager.py`, `pyproject.toml`,
-`Dockerfile.remote`.
+`Dockerfile.remote`. Add to those the **tool modules**, which conflicted in both
+the 2026-09-02 and 2026-09-10 syncs for the reason below: `health_wellness.py`,
+`nutrition.py`, `courses.py`, `training.py`, `workouts.py`.
+
+**The recurring conflict, and how to resolve it.** Two syncs running, most
+conflicts were the same shape and are not real disagreements. Upstream inserts a
+new tool immediately *before* an existing one, and the existing one's signature
+differs here because this fork threads `ctx` into it. Git sees the new tool and
+the changed signature line as one overlapping hunk:
+
+```
+<<<<<<< HEAD
+    async def get_user_summary(ctx: Context, date: str) -> str:     <- ours
+=======
+    ...upstream's entire new tool...
+    async def get_user_summary(date: str) -> str:                   <- theirs
+>>>>>>> upstream/main
+```
+
+The resolution is mechanical: **take upstream's block, drop its last line, and
+restore our signature line.** Nothing else in the hunk is in dispute. Judge each
+hunk before applying it though — in the 2026-09-10 sync one conflict in
+`nutrition.py` looked identical but was a genuine upstream bug fix that had to be
+taken whole.
 
 **Watch items during conflict resolution:**
 
