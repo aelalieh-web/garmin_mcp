@@ -5,6 +5,44 @@ All notable changes **this fork** makes relative to its upstream base,
 invariants behind these and the upstream-sync procedure. The authoritative diff is
 `git diff upstream/main...main` once the upstream remote is wired.
 
+## Availability audit: what is left to pull in — 2026-09-10
+
+Surveyed every source this fork draws from, to answer whether anything remains
+worth taking.
+
+- **Both parent forks are fully absorbed.** `Tomas2D/garmin_mcp` (last commit
+  2026-06-04) and `coloboxp/garmin_mcp` (2026-05-27) each have **zero** commits
+  not in our `main` and **zero** tools we lack — 124 and 122 against our 166.
+  Nothing to take, and both look dormant.
+- **Upstream is current** — 0 commits behind after today's sync.
+- **The library is eight releases behind, and staying there.** We pin
+  `garminconnect==0.3.5`; latest is `0.3.13`, which adds 16 methods and removes
+  none.
+
+**The pin invariant was understated and is now corrected.** It said the stored
+token format "depends on the 0.3.x line", which implies any 0.3.x is safe. It is
+not: **0.3.13 drops `garth` entirely**, replacing it with `curl_cffi` +
+`ua-generator`. Garth is this fork's whole auth substrate — `garth.dump()` in
+`session_manager`, the `OAuth1Token`/`OAuth2Token` handling, the
+`di_token`/`di_refresh_token`/`di_client_id` blob the token-import page accepts,
+`GarthHTTPError` in `auth_tools`, and the 429 fail-fast client that patches
+garth's retry `status_forcelist`. A bump past the last garth-based release is an
+authentication-layer rewrite, not a version change, and would likely invalidate
+every session already stored on the `/data` volume.
+
+The 16 new methods do not justify that. The appealing ones —
+`push_workout_to_device`, `update_workout`, `get_hrv_data_range` — are
+conveniences over capabilities this fork already has.
+
+**A note on how this was found.** The first comparison reported `get_spo2_data`
+as removed in 0.3.13, which would have been a blocker. It was not removed; the
+method list had been filtered through `^[a-z_]+$`, which excludes digits, so
+`spo2` was silently dropped from one side and read as a removal. A second filter
+in the same investigation (`grep -v "^ "`) ate the indented answer to a different
+question. Both produced confident, wrong output rather than an error — the same
+shape as the placeholder scanner, the workflow that never ran, and the test that
+swallowed every exception.
+
 ## Upstream sync 2026-09-10 — 9 commits, 2 new tools
 
 **New tools:** `get_stats_range` (multi-day calorie/step totals, 28-day cap) and
