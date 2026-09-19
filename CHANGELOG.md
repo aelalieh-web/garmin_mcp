@@ -5,6 +5,47 @@ All notable changes **this fork** makes relative to its upstream base,
 invariants behind these and the upstream-sync procedure. The authoritative diff is
 `git diff upstream/main...main` once the upstream remote is wired.
 
+## get_coach_plan_details — the plan endpoint that actually works — 2026-09-19
+
+Captured Garmin Connect's own network traffic to find what the web client calls,
+rather than guessing at endpoints again. Three things came out of it.
+
+**The removal was right, now proven from the browser.**
+`GET /gc-api/trainingplan-service/trainingplan/plans?limit=50` returns
+`{"trainingPlanList": []}` from a fully authenticated browser session with the
+plan active. That service lists structured/phased plans; it does not know about
+adaptive ones. The tool deleted this morning was calling a working endpoint that
+simply has nothing to say about Garmin Coach.
+
+**The real endpoint is on a different service prefix.**
+`GET /atp-api/atp/athlete/plan?lang=en&athletePlanId=<id>` — `atp-api`, not
+`gc-api/trainingplan-service`. That is why the old tool 404'd: right concept,
+wrong service. `connectapi()` reaches it unchanged, verified against the live
+plan. New tool `get_coach_plan_details` returns what the workout feed does not:
+
+```
+goal_time (31:00) and goal_type      confidence (Garmin's own 0-100 estimate
+workout_days, long_run_day            that the goal will be met, which moves
+coach_key, race_event_id              as you train)
+pre_plan_weekly_mileage / pace        paused / quit
+```
+
+**The plan name was never a field.** The web client assembles "5K Plan with
+Coach Jeff" client-side from the race distance and a second GraphQL endpoint —
+`POST /gateway/graph-atp/graphql`, distinct from the `trainingPlanScalar` one
+this fork uses — which resolves `coachKey: "JeffGalloway"` to a first and last
+name. Earlier sessions spent effort looking for a `planName` that does not exist
+server-side.
+
+`userPk` is deliberately not exposed, as with `ownerId` earlier today: account
+identifiers with no analytical value. Tests assert both stay out.
+
+The fixture is the captured payload verbatim, and a test asserts the tool calls
+`atp-api` and *not* `trainingplan-service` — pointing it back at the dead service
+would reproduce exactly the bug that got three tools deleted.
+
+Tests: +6. Result: 769 passed. Tool counts stdio 165 / remote 163.
+
 ## Coach workout curation: plan linkage, and prescribed vs performed — 2026-09-19
 
 A second audit, one level below the plan-level fix earlier today. It found much

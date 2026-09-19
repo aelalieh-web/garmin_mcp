@@ -1473,4 +1473,77 @@ def register_tools(app):
             "results": results
         }, indent=2)
 
+    @app.tool()
+    async def get_coach_plan_details(ctx: Context, plan_id: Union[int, str]) -> str:
+        """Get the goal, schedule and coach behind an adaptive Garmin Coach plan.
+
+        Returns the plan's target race and goal time, Garmin's own confidence
+        that you will hit it, which weekdays the plan uses, the long-run day,
+        the assigned coach, and the fitness baseline the plan was built from.
+        None of this is in get_garmin_coach_workouts, which returns the
+        workouts and a little plan metadata but not the plan's intent.
+
+        Args:
+            plan_id: Adaptive plan id — the `training_plan_id` reported by
+                get_garmin_coach_workouts.
+        """
+        try:
+            # NOT trainingplan-service. That service lists structured/phased
+            # plans and returns an empty list for an enrolled adaptive plan;
+            # its fbt-adaptive path 404s for an id from the workout feed. The
+            # adaptive plans live behind atp-api, on a different service
+            # prefix, which is what Garmin Connect's own web client calls.
+            data = get_client(ctx).connectapi(
+                f"/atp-api/atp/athlete/plan?lang=en&athletePlanId={int(plan_id)}"
+            )
+            if not isinstance(data, dict) or not data:
+                return f"No adaptive training plan found with id {plan_id}."
+
+            def _d(value):
+                return value if isinstance(value, dict) else {}
+
+            race = _d(data.get("athleteRace"))
+            goal = _d(data.get("athletePlanGoal"))
+            coach = _d(data.get("coach"))
+            coach_model = _d(coach.get("contentfulModel"))
+
+            goal_seconds = data.get("goalTimeSeconds")
+            goal_time = None
+            if isinstance(goal_seconds, (int, float)) and goal_seconds > 0:
+                goal_time = f"{int(goal_seconds) // 60}:{int(goal_seconds) % 60:02d}"
+
+            curated = {
+                "plan_id": data.get("athletePlanId"),
+                "registration_date": data.get("registrationDate"),
+                "plan_completed": data.get("planCompleted"),
+                # Garmin reports these as objects when set, null otherwise.
+                "paused": data.get("pause") is not None,
+                "quit": data.get("quit") is not None,
+                "race_name": race.get("raceName"),
+                "race_day": race.get("raceDay"),
+                "race_event_id": race.get("raceEventId"),
+                "goal_type": goal.get("goal"),
+                "goal_description": goal.get("localizedGoal"),
+                "goal_time_seconds": goal_seconds,
+                "goal_time": goal_time,
+                # Garmin's own estimate (0-100) that the goal will be met. It
+                # moves as you train, so it is a progress signal, not a constant.
+                "confidence": data.get("confidence"),
+                "workouts_per_week": data.get("workoutsPerWeek"),
+                "workout_days": data.get("workoutCalendarDays"),
+                "long_run_day": data.get("longRunDay"),
+                "coach_key": coach_model.get("contentfulContentId"),
+                "coach_id": coach.get("coachId"),
+                # What the plan was calibrated from at registration.
+                "pre_plan_weekly_mileage": data.get("prePlanWeeklyMileage"),
+                "pre_plan_training_pace_seconds": data.get("prePlanTrainingPace"),
+            }
+            # userPk is deliberately omitted: an account identifier with no
+            # analytical value.
+            return json.dumps(
+                {k: v for k, v in curated.items() if v is not None}, indent=2
+            )
+        except Exception as e:
+            return f"Error getting adaptive training plan {plan_id}: {str(e)}"
+
     return app
