@@ -1565,9 +1565,10 @@ def register_tools(app):
                 # which is what made an earlier per-km reading look convincing.
                 #
                 # These pre-plan fields also appear to be self-reported at
-                # registration rather than derived: pre_plan_weekly_mileage is 0
-                # while the account had logged runs in the fortnight before
-                # signup. So a match against measured data is weak evidence
+                # registration rather than derived. pre_plan_weekly_mileage is 0
+                # while this account logged four running-typed activities
+                # totalling 17.9 km in the twelve days before signup -- about
+                # 5.6 miles a week. A derived figure could not round to zero. So a match against measured data is weak evidence
                 # either way, and flipping the account's display units will NOT
                 # settle it — a value captured at registration does not change
                 # with display preference. It needs the athlete's recollection

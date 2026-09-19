@@ -40,12 +40,15 @@ anticipated when the tool was written.
   755 m / 300 s benchmark interval, avg HR 165, cadence 158 — is **397 s/km**,
   and 617 read as s/mile is 383 s/km, within 4%. Read as s/km it is 16:33/mile,
   slower than any running on the account.
-  Two further points, from a parallel session: `pre_plan_weekly_mileage` is 0
-  while runs were logged before signup, so these fields look self-reported at
-  registration rather than derived — which makes any match against measured data
-  weak evidence. And the display-unit flip proposed earlier **will not
-  discriminate**, since a value captured at registration does not change with
-  display preference. It needs the athlete's recollection of the setup flow.
+  Two further points, from a parallel session. First, these fields look
+  self-reported at registration rather than derived: `pre_plan_weekly_mileage`
+  is 0, while this account logged four running-typed activities totalling
+  17.9 km in the twelve days before signup, about 5.6 miles a week. No
+  derivation rounds that to zero, which makes any match against measured data
+  weak evidence in either direction. Second, the display-unit flip proposed
+  earlier **will not discriminate**, since a value captured at registration does
+  not change with display preference. It needs the athlete's recollection of
+  what the setup flow asked for.
 
 **And one question answered:** `protected` (workout feed) and `benchmark` (ATP
 calendar) are different fields from different services — neither sends the
