@@ -1556,14 +1556,22 @@ def register_tools(app):
                 "coach_id": coach.get("coachId"),
                 # What the plan was calibrated from at registration.
                 #
-                # UNIT UNVERIFIED. Garmin sends a bare number with no unit and
-                # one sample is not enough to settle it: 617 matches this
-                # account's measured seconds-per-kilometre almost exactly, but
-                # reading it as seconds-per-mile is what makes the plan's goal
-                # coherent (a 3% improvement rather than 40%). Both readings
-                # reconcile if it is running pace while the recorded averages
-                # include walk intervals. Settle it by flipping the account
-                # between metric and statute display units and re-fetching.
+                # UNIT UNVERIFIED, though seconds-per-MILE is the better
+                # reading. Garmin sends a bare number. Against this account:
+                # continuous running measures 397 s/km (the 755 m / 300 s
+                # benchmark interval), and 617 read as s/mile is 383 s/km —
+                # within 4%. Read as s/km it is 16:33/mile, slower than any
+                # running recorded here and matching only run-walk composites,
+                # which is what made an earlier per-km reading look convincing.
+                #
+                # These pre-plan fields also appear to be self-reported at
+                # registration rather than derived: pre_plan_weekly_mileage is 0
+                # while the account had logged runs in the fortnight before
+                # signup. So a match against measured data is weak evidence
+                # either way, and flipping the account's display units will NOT
+                # settle it — a value captured at registration does not change
+                # with display preference. It needs the athlete's recollection
+                # of what the setup flow asked for.
                 "pre_plan_weekly_mileage": data.get("prePlanWeeklyMileage"),
                 "pre_plan_training_pace_seconds": data.get("prePlanTrainingPace"),
             }
