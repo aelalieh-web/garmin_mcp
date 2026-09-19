@@ -41,7 +41,8 @@ coverage.
 | Token import | `session_manager.py`, `oauth_provider.py`, `remote.py` | `create_session_from_token_blob`; login-page import + `POST /import-token`. Gated by `GARMIN_IMPORT_SECRET` + allowlist. |
 | 429 fail-fast login client | `oauth_provider.py` (`_new_login_client`) | Excludes 429 from garth's retry `status_forcelist` so a rate-limited login isn't amplified. |
 | Coach plan curation fix | `workouts.py` (`_get_garmin_coach_workouts`) | Surfaces the `trainingPlanDetailsDTO` fields that exist — race goal, workouts per week, registration date. Upstream reads only `trainingType`, which adaptive plans do not have. |
-| Adaptive plan detail (1 tool) | `workouts.py` (`get_coach_plan_details`) | Reads `/atp-api/atp/athlete/plan`, the endpoint Garmin Connect's own web client uses. Returns the race goal, Garmin's confidence in it, the training week and the coach — none of which the workout feed carries. |
+| Garmin Coach tools (3) | `workouts.py` | `get_coach_plans` (active + completed), `get_coach_plan_details`, `get_coach_plan_progress` (per-workout grades). All on `atp-api`, found by capturing Garmin Connect's own traffic. |
+| Paired sensor battery (1 tool) | `devices.py` (`get_sensors`) | `/device-service/sensors` — battery level and last-connected, which `get_devices` omits. |
 | Coverage additions (1 tool) | `gear_management.py` | `get_gear_activities` — the reverse of `get_activity_gear`, for auditing a shoe's or bike's accumulated mileage. Three training-plan tools added alongside it were removed on 2026-09-19; see the invariant below. |
 | Railway deploy | `railway.json`, `Dockerfile.remote`, `config.py` | `railway.json` pins the Dockerfile builder; `config.port` honors `$PORT`. |
 
@@ -333,12 +334,12 @@ taken whole.
     path in remote mode. Do not add it to `_GUARDED` to make the test pass —
     `_GUARDED` records tools that already refuse.
 
-**Definition of done:** suite green, invariants intact, tool counts stdio 165 / remote 163.
+**Definition of done:** suite green, invariants intact, tool counts stdio 168 / remote 166.
 
 ## Expected state after a clean build
 
-- Full suite: `uv run pytest -m "not e2e"` → all pass (769 at time of writing).
-- Tool counts: **stdio 165**, **remote 163** (auth tools are stdio-only).
+- Full suite: `uv run pytest -m "not e2e"` → all pass (781 at time of writing).
+- Tool counts: **stdio 168**, **remote 166** (auth tools are stdio-only).
 - Documented counts are test-enforced: `tests/unit/test_documented_counts.py`
   fails when `CLAUDE.md`, `FORK.md` or `README.md` disagrees with the tools
   actually registered, so these figures cannot silently rot again.

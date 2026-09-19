@@ -5,6 +5,44 @@ All notable changes **this fork** makes relative to its upstream base,
 invariants behind these and the upstream-sync procedure. The authoritative diff is
 `git diff upstream/main...main` once the upstream remote is wired.
 
+## Three tools from captured traffic — 2026-09-19
+
+Built from a second HAR of Garmin Connect's own web client, this time with the
+plan detail page open. Every fixture in the tests is a real response body.
+
+**`get_coach_plan_progress`** — the significant one.
+`/atp-api/atp/athlete/calendar` returns a **`performanceRating`** for each
+completed workout: Garmin Coach's own assessment of how the session was executed
+against what it prescribed. Both of this account's completed sessions came back
+`GOOD` / "Good Job".
+
+That rating is not the watch's training effect, which measures physiological
+load. It is adherence to the prescription, and it exists nowhere else in this
+server — not in the GraphQL workout feed, not in the activity summary. The same
+endpoint also flags `benchmark` workouts, the plan's own checkpoints, and
+carries the `activityId` link, so one call covers prescribed, performed and
+graded over any date range.
+
+**`get_coach_plans`** — properly replaces the `get_training_plans` deleted this
+morning. `/atp-api/atp/athlete/active` and `/completed` return full plan objects,
+so a plan id can be discovered without first fetching a week of workouts.
+Completed plans are labelled and can be skipped.
+
+**`get_sensors`** — `/device-service/sensors` carries battery level, last
+connection and firmware for paired straps and pods. `get_devices` returns names,
+models and serials but no battery state, which is the thing worth checking before
+a session. Garmin lists the same sensor once per paired device, so entries are
+de-duplicated by serial.
+
+**Not built**, having seen their payloads: `atp/athlete/feed` (a timeline whose
+tips are Contentful ids needing a second lookup to become readable, and whose
+graded entries duplicate the calendar), `atp/athlete/nextWorkout` (subsumed by
+the calendar), `atp/types` and `atp/setup/plans/change` (browse-once data for
+choosing a plan, not for carrying in every session).
+
+Tests: +12, all fixtures captured rather than invented. Result: 781 passed.
+Tool counts stdio 168 / remote 166.
+
 ## get_coach_plan_details — the plan endpoint that actually works — 2026-09-19
 
 Captured Garmin Connect's own network traffic to find what the web client calls,

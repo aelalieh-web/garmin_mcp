@@ -1546,4 +1546,136 @@ def register_tools(app):
         except Exception as e:
             return f"Error getting adaptive training plan {plan_id}: {str(e)}"
 
+    @app.tool()
+    async def get_coach_plan_progress(
+        ctx: Context, plan_id: Union[int, str], start_date: str, end_date: str
+    ) -> str:
+        """Get Garmin Coach's grade for each workout in a date range.
+
+        Returns one entry per scheduled workout with the activity that fulfilled
+        it and, for completed ones, Garmin Coach's own **performance rating** —
+        its assessment of how the session was executed against what the plan
+        prescribed. That rating exists nowhere else in this server: it is not in
+        the workout feed, and it is not the watch's training effect, which
+        measures physiological load rather than adherence to the prescription.
+
+        Also flags benchmark workouts, the plan's own checkpoints, and race days.
+
+        Args:
+            plan_id: Adaptive plan id (`training_plan_id` from
+                get_garmin_coach_workouts).
+            start_date: Start date, YYYY-MM-DD.
+            end_date: End date, YYYY-MM-DD.
+        """
+        try:
+            _validate_date(start_date, "start_date")
+            _validate_date(end_date, "end_date")
+            data = get_client(ctx).connectapi(
+                f"/atp-api/atp/athlete/calendar?athletePlanId={int(plan_id)}"
+                f"&startDate={start_date}&endDate={end_date}&lang=en"
+            )
+            if not isinstance(data, list):
+                return json.dumps(data, indent=2)
+            if not data:
+                return (
+                    f"No plan workouts between {start_date} and {end_date} "
+                    f"for plan {plan_id}."
+                )
+
+            entries = []
+            graded = 0
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                rating = item.get("performanceRating")
+                rating = rating if isinstance(rating, dict) else {}
+                entry = {
+                    "date": item.get("scheduledWorkoutDate"),
+                    "workout_id": item.get("workoutId"),
+                    "scheduled_workout_id": item.get("scheduleWorkoutId"),
+                    # null until the workout is completed and uploaded
+                    "activity_id": item.get("activityId"),
+                    "completed": item.get("activityId") is not None,
+                    "rating": rating.get("rating"),
+                    "rating_text": rating.get("localizedRating"),
+                }
+                if rating.get("rating"):
+                    graded += 1
+                # Both are flags Garmin sets on specific sessions; report only
+                # when true so an ordinary workout stays uncluttered.
+                if item.get("benchmark"):
+                    entry["benchmark"] = True
+                if item.get("race"):
+                    entry["race"] = True
+                entries.append({k: v for k, v in entry.items() if v is not None})
+
+            return json.dumps(
+                {
+                    "plan_id": int(plan_id),
+                    "date_range": {"start": start_date, "end": end_date},
+                    "count": len(entries),
+                    "graded_count": graded,
+                    "workouts": entries,
+                },
+                indent=2,
+            )
+        except Exception as e:
+            return f"Error getting plan progress for {plan_id}: {str(e)}"
+
+    @app.tool()
+    async def get_coach_plans(ctx: Context, include_completed: bool = True) -> str:
+        """List your Garmin Coach plans, active and previously completed.
+
+        The entry point: every other Coach tool needs a plan id, and this is
+        where one comes from without first fetching a week of workouts.
+
+        Note this does NOT use `trainingplan-service`, which returns an empty
+        list for adaptive plans even when one is active — see FORK.md.
+
+        Args:
+            include_completed: Also return finished plans (default True).
+        """
+        try:
+            client = get_client(ctx)
+
+            def _summarise(plan, completed):
+                if not isinstance(plan, dict):
+                    return None
+                race = plan.get("athleteRace")
+                race = race if isinstance(race, dict) else {}
+                seconds = plan.get("goalTimeSeconds")
+                goal_time = None
+                if isinstance(seconds, (int, float)) and seconds > 0:
+                    goal_time = f"{int(seconds) // 60}:{int(seconds) % 60:02d}"
+                summary = {
+                    "plan_id": plan.get("athletePlanId"),
+                    "status": "completed" if completed else "active",
+                    "race_name": race.get("raceName"),
+                    "race_day": race.get("raceDay"),
+                    "goal_time": goal_time,
+                    "confidence": plan.get("confidence"),
+                    "workouts_per_week": plan.get("workoutsPerWeek"),
+                    "registration_date": plan.get("registrationDate"),
+                }
+                return {k: v for k, v in summary.items() if v is not None}
+
+            plans = []
+            for path, completed in (
+                ("/atp-api/atp/athlete/active", False),
+                ("/atp-api/atp/athlete/completed", True),
+            ):
+                if completed and not include_completed:
+                    continue
+                data = client.connectapi(path)
+                if isinstance(data, list):
+                    plans.extend(
+                        p for p in (_summarise(x, completed) for x in data) if p
+                    )
+
+            if not plans:
+                return "No Garmin Coach plans found."
+            return json.dumps({"count": len(plans), "plans": plans}, indent=2)
+        except Exception as e:
+            return f"Error listing Garmin Coach plans: {str(e)}"
+
     return app
