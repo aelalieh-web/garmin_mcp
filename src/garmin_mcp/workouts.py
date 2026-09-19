@@ -1556,22 +1556,30 @@ def register_tools(app):
                 "coach_id": coach.get("coachId"),
                 # What the plan was calibrated from at registration.
                 #
-                # UNIT UNVERIFIED, though seconds-per-MILE is the better
-                # reading. Garmin sends a bare number. Against this account:
-                # continuous running measures 397 s/km (the 755 m / 300 s
-                # benchmark interval), and 617 read as s/mile is 383 s/km —
-                # within 4%. Read as s/km it is 16:33/mile, slower than any
-                # running recorded here and matching only run-walk composites,
-                # which is what made an earlier per-km reading look convincing.
+                # UNIT UNVERIFIED and formally unresolved. Garmin sends a
+                # bare number. What is settled is magnitude only:
                 #
-                # These pre-plan fields also appear to be self-reported at
-                # registration rather than derived: pre_plan_weekly_mileage is 0
-                # while the account had logged runs in the fortnight before
-                # signup. So a match against measured data is weak evidence
-                # either way, and flipping the account's display units will NOT
-                # settle it — a value captured at registration does not change
-                # with display preference. It needs the athlete's recollection
-                # of what the setup flow asked for.
+                #   617 as s/mile = 383 s/km, within 4% of this account's
+                #     measured continuous running (397 s/km -- the 755 m / 300 s
+                #     benchmark interval at HR 165, cadence 158).
+                #   617 as s/km   = 16:33/mile, between measured running at
+                #     397 s/km and measured walking at 743 s/km. It sits among
+                #     the whole-activity run-walk composites (551-588 s/km
+                #     across four pre-registration runs), which is why an
+                #     earlier per-km reading looked convincing.
+                #
+                # PROVENANCE IS OPEN. The athlete confirms he entered 0 for
+                # weekly mileage at registration, so that zero is his input and
+                # says nothing about Garmin's method -- an earlier note here
+                # argued the opposite and was wrong. Whether the pace was
+                # entered, defaulted, or derived is unknown, and the branches
+                # point opposite ways: derived favours per-km, since 617 falls
+                # among his composites; a default favours per-mile, since
+                # 10:17/mi is a plausible beginner default and 16:33/mi is not.
+                #
+                # Flipping the account's display units will NOT settle it: a
+                # value captured at registration does not change with display
+                # preference.
                 "pre_plan_weekly_mileage": data.get("prePlanWeeklyMileage"),
                 "pre_plan_training_pace_seconds": data.get("prePlanTrainingPace"),
             }

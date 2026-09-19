@@ -32,20 +32,34 @@ anticipated when the tool was written.
 - `performed_at` — confirmed device-local with no zone designator, byte-identical
   to the activity's `start_time_local` and four hours behind `start_time_gmt`.
   Documented, since appending `Z` moves an evening session to the next day.
-- `pre_plan_training_pace_seconds` — Garmin sends a bare number. Still formally
-  unresolved, but **seconds-per-mile is the better reading**, and an earlier note
-  here arguing for per-kilometre has been corrected. The per-km case rested on
-  617 matching this account's measured pace; those measurements were whole-activity
-  averages of run-walk sessions. The only continuous running effort — the
-  755 m / 300 s benchmark interval, avg HR 165, cadence 158 — is **397 s/km**,
-  and 617 read as s/mile is 383 s/km, within 4%. Read as s/km it is 16:33/mile,
-  slower than any running on the account.
-  Two further points, from a parallel session: `pre_plan_weekly_mileage` is 0
-  while runs were logged before signup, so these fields look self-reported at
-  registration rather than derived — which makes any match against measured data
-  weak evidence. And the display-unit flip proposed earlier **will not
-  discriminate**, since a value captured at registration does not change with
-  display preference. It needs the athlete's recollection of the setup flow.
+- `pre_plan_training_pace_seconds` — Garmin sends a bare number, and it stays
+  **formally unresolved**. Two earlier notes here have been withdrawn.
+
+  What is settled is magnitude. Read as **seconds-per-mile**, 617 is 383 s/km —
+  within 4% of this account's measured continuous running, 397 s/km from the
+  755 m / 300 s benchmark interval at HR 165, cadence 158. Read as
+  **seconds-per-kilometre** it is 16:33/mile, sitting between measured running
+  (397 s/km) and walking (743 s/km), and squarely among the whole-activity
+  run-walk composites — 551–588 s/km across four pre-registration runs. That
+  overlap is why a first note here argued for per-kilometre; it was comparing a
+  pure-running field against composites.
+
+  **Provenance is open, and a second note claiming otherwise was wrong.** It
+  argued these fields must be self-reported because `pre_plan_weekly_mileage` is
+  0 while the account had logged runs — "no derivation rounds that to zero". The
+  athlete has since confirmed he entered 0 himself at registration. The zero is
+  his input and says nothing about Garmin's method, so the inference does not
+  hold and everything resting on it is withdrawn.
+
+  Whether the pace was entered, defaulted, or derived is unknown, and the
+  branches point opposite ways: derived favours per-kilometre, since 617 falls
+  among his composites; a default favours per-mile, since 10:17/mi is a
+  plausible beginner default and 16:33/mi is not. The per-mile case is one
+  argument weaker than it was an hour ago.
+
+  Flipping display units will not settle it — a registration-captured value does
+  not change with display preference. It needs the athlete's recollection of
+  what the setup flow asked for on pace specifically.
 
 **And one question answered:** `protected` (workout feed) and `benchmark` (ATP
 calendar) are different fields from different services — neither sends the
