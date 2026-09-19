@@ -5,6 +5,33 @@ All notable changes **this fork** makes relative to its upstream base,
 invariants behind these and the upstream-sync procedure. The authoritative diff is
 `git diff upstream/main...main` once the upstream remote is wired.
 
+## Upstream sync 2026-09-19 — 3 commits, 1 new tool
+
+**`get_energy_balance`** — derives a composition-based TDEE from logged intake,
+Garmin's expenditure model, and weight change over a date range. It completes
+work taken in the previous sync: `get_stats_range` and
+`get_nutrition_summary_between_dates` supply exactly the two inputs it needs,
+so the fork now has the whole chain rather than the raw materials. 426 lines
+with 422 lines of tests.
+
+Two docs commits: running multiple Garmin accounts via `GARMINTOKENS`, and a
+Windows Smart App Control troubleshooting note.
+
+**The conflict was the documented one**, resolved from `FORK.md`'s recipe rather
+than re-derived: upstream inserts the new tool immediately before
+`get_user_summary`, whose signature this fork changed to thread `ctx`, so the
+boundary collides. Take upstream's block, drop its last line, restore our
+signature. Third sync running with this shape; writing it down turned a careful
+read into a rote edit.
+
+The documented-count guard fired again, correctly — it caught `CLAUDE.md` and
+`FORK.md` after the README had already been updated by hand. Worth noting its
+own second-order effect: the test total it reports moves once the count tests
+themselves go from failing to passing, so the figure written into `FORK.md` has
+to be the post-fix one (759, not the 757 seen while they were red).
+
+Result: 759 passed. Tool counts stdio 164 / remote 162.
+
 ## Coach plan tools: three removed, one fixed — 2026-09-19
 
 An enrolled Garmin Coach plan finally existed to test against, and it showed the
