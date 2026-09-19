@@ -33,33 +33,52 @@ anticipated when the tool was written.
   to the activity's `start_time_local` and four hours behind `start_time_gmt`.
   Documented, since appending `Z` moves an evening session to the next day.
 - `pre_plan_training_pace_seconds` — Garmin sends a bare number, and it stays
-  **formally unresolved**. Two earlier notes here have been withdrawn.
+  **formally unresolved**. Three earlier notes here have been withdrawn.
 
-  What is settled is magnitude. Read as **seconds-per-mile**, 617 is 383 s/km —
-  within 4% of this account's measured continuous running, 397 s/km from the
-  755 m / 300 s benchmark interval at HR 165, cadence 158. Read as
-  **seconds-per-kilometre** it is 16:33/mile, sitting between measured running
-  (397 s/km) and walking (743 s/km), and squarely among the whole-activity
-  run-walk composites — 551–588 s/km across four pre-registration runs. That
-  overlap is why a first note here argued for per-kilometre; it was comparing a
-  pure-running field against composites.
+  **Only registration-day data counts.** A value captured 2026-09-13T20:09:50Z
+  cannot have been computed from a session on the 14th or the 17th. Applying
+  that cut removed an argument from *each* side: the per-kilometre reading
+  rested on a 09-17 composite, and the per-mile reading rested on the 09-14
+  benchmark interval. Measured across the four sessions that did exist —
+  09-02, 09-07, 09-09, 09-11:
 
-  **Provenance is open, and a second note claiming otherwise was wrong.** It
-  argued these fields must be self-reported because `pre_plan_weekly_mileage` is
-  0 while the account had logged runs — "no derivation rounds that to zero". The
-  athlete has since confirmed he entered 0 himself at registration. The zero is
-  his input and says nothing about Garmin's method, so the inference does not
-  hold and everything resting on it is withdrawn.
+  | | per session | per interval |
+  |---|---|---|
+  | run segments | 336.8–397.7 s/km | 308.6–424.5 s/km |
+  | walk segments | 710.3–733.1 s/km | |
+  | whole activity | 551.1–588.0 s/km | |
 
-  Whether the pace was entered, defaulted, or derived is unknown, and the
-  branches point opposite ways: derived favours per-kilometre, since 617 falls
-  among his composites; a default favours per-mile, since 10:17/mi is a
-  plausible beginner default and 16:33/mi is not. The per-mile case is one
-  argument weaker than it was an hour ago.
+  Read as **seconds-per-mile**, 617 is 383.4 s/km — inside both run bands.
+  Read as **seconds-per-kilometre** it is 16:33/mile — above every run figure
+  by 45% or more and above every composite by 4.9% or more. It matches nothing
+  that existed when it was captured. The asymmetry is the argument: landing
+  inside a 116-second band does not prove per-mile, but fitting nothing at all
+  sinks per-kilometre.
 
-  Flipping display units will not settle it — a registration-captured value does
-  not change with display preference. It needs the athlete's recollection of
-  what the setup flow asked for on pace specifically.
+  **A second check, independent of activity data.** The goal is 31:00 over 5K,
+  or 372.0 s/km. Against a per-mile baseline that is 3.0% faster — an ordinary
+  ten-week target. Against a per-kilometre baseline it is 39.7% faster. Garmin
+  publishes `confidence` 78 for that pairing, and the number is Garmin's own,
+  computed from baseline and goal together. No coaching system rates a 40%
+  improvement in ten weeks at 78. Because this reads two fields of one payload,
+  no stale or misdated snapshot can spoil it.
+
+  **Provenance is open, and a note claiming otherwise was wrong.** It argued
+  these fields must be self-reported because `pre_plan_weekly_mileage` is 0
+  while the account had logged runs — "no derivation rounds that to zero". The
+  athlete has since confirmed he entered 0 himself, so the zero is his input
+  and says nothing about Garmin's method. He also reports entering nothing for
+  pace, which leaves **defaulted or derived**. Derived favours per-mile, per
+  the bands above; a default favours per-mile too, since 10:17/mi is a
+  plausible beginner default and 16:33/mi is not a pace anyone would be
+  defaulted to. Both surviving branches point the same way.
+
+  It stays unresolved because no branch is directly observed — **not** because
+  the readings are balanced. They are not, and nothing currently argues for
+  per-kilometre. If the setup flow did ask for pace and he simply does not
+  recall, "entered" returns and the derived argument weakens. Flipping display
+  units will not settle it: a registration-captured value does not change with
+  display preference.
 
 **And one question answered:** `protected` (workout feed) and `benchmark` (ATP
 calendar) are different fields from different services — neither sends the
