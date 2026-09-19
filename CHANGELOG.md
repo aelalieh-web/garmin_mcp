@@ -32,12 +32,20 @@ anticipated when the tool was written.
 - `performed_at` — confirmed device-local with no zone designator, byte-identical
   to the activity's `start_time_local` and four hours behind `start_time_gmt`.
   Documented, since appending `Z` moves an evening session to the next day.
-- `pre_plan_training_pace_seconds` — Garmin sends a bare number. 617 matches this
-  account's measured seconds-per-kilometre almost exactly, yet reading it as
-  seconds-per-mile is what makes the plan's goal coherent (3% improvement rather
-  than 40%). Both reconcile if it is running pace while the recorded averages
-  include walk intervals. Recorded as unresolved, with the experiment that would
-  settle it.
+- `pre_plan_training_pace_seconds` — Garmin sends a bare number. Still formally
+  unresolved, but **seconds-per-mile is the better reading**, and an earlier note
+  here arguing for per-kilometre has been corrected. The per-km case rested on
+  617 matching this account's measured pace; those measurements were whole-activity
+  averages of run-walk sessions. The only continuous running effort — the
+  755 m / 300 s benchmark interval, avg HR 165, cadence 158 — is **397 s/km**,
+  and 617 read as s/mile is 383 s/km, within 4%. Read as s/km it is 16:33/mile,
+  slower than any running on the account.
+  Two further points, from a parallel session: `pre_plan_weekly_mileage` is 0
+  while runs were logged before signup, so these fields look self-reported at
+  registration rather than derived — which makes any match against measured data
+  weak evidence. And the display-unit flip proposed earlier **will not
+  discriminate**, since a value captured at registration does not change with
+  display preference. It needs the athlete's recollection of the setup flow.
 
 **And one question answered:** `protected` (workout feed) and `benchmark` (ATP
 calendar) are different fields from different services — neither sends the
