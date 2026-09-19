@@ -333,4 +333,49 @@ def register_tools(app):
         except Exception as e:
             return f"Error retrieving device alarms: {str(e)}"
 
+    @app.tool()
+    async def get_sensors(ctx: Context) -> str:
+        """List paired sensors with battery level and last connection.
+
+        Covers straps, pods and scales — anything paired that is not the watch
+        itself. get_devices returns registered devices with names, models and
+        serials but no battery state, which is the thing worth checking before
+        a session.
+
+        Garmin reports the same sensor once per paired device, so entries are
+        de-duplicated here by serial number.
+        """
+        try:
+            data = get_client(ctx).connectapi("/device-service/sensors")
+            if not isinstance(data, list):
+                return json.dumps(data, indent=2)
+
+            seen = set()
+            sensors = []
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                serial = item.get("serialNumber")
+                if serial in seen:
+                    continue
+                seen.add(serial)
+                sensor = {
+                    "name": item.get("deviceName"),
+                    "type": item.get("sensorType"),
+                    "battery_status": item.get("batteryStatus"),
+                    "battery_level": item.get("batteryLevel"),
+                    "last_connected": item.get("lastConnected"),
+                    "software_version": item.get("softwareVersion"),
+                    "manufacturer": item.get("manufacturer"),
+                    "rechargeable": item.get("rechargeableSensorCapable"),
+                    "priority_sensor": item.get("prioritySensor"),
+                }
+                sensors.append({k: v for k, v in sensor.items() if v is not None})
+
+            if not sensors:
+                return "No paired sensors found."
+            return json.dumps({"count": len(sensors), "sensors": sensors}, indent=2)
+        except Exception as e:
+            return f"Error retrieving sensors: {str(e)}"
+
     return app

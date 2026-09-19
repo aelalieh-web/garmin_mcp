@@ -1,0 +1,210 @@
+"""Tools built from captured Garmin Connect traffic on 2026-09-19.
+
+Every fixture here is a real response body, taken from a HAR of Garmin
+Connect's own web client. That matters: three tools were deleted earlier the
+same day for being built on endpoints inferred from library method names, which
+returned an empty list and a 404 against a live plan.
+"""
+import json
+
+import pytest
+from mcp.server.fastmcp import FastMCP
+
+from garmin_mcp import devices, workouts
+from garmin_mcp.client_resolver import set_global_client
+
+
+def _app(module, client):
+    module.configure(client)
+    set_global_client(client)
+    return module.register_tools(FastMCP("t"))
+
+
+async def _text(app, name, args):
+    return (await app.call_tool(name, args))[0][0].text
+
+
+# ─── get_coach_plan_progress ──────────────────────────────────────────────
+
+# GET /atp-api/atp/athlete/calendar?athletePlanId=…&startDate=…&endDate=…
+_LIVE_CALENDAR = [
+    {
+        "scheduledWorkoutDate": "2026-09-14", "workoutId": 1696625519,
+        "scheduleWorkoutId": 1776111029, "activityId": 24359243048,
+        "performanceRating": {"rating": "GOOD", "localizedRating": "Good Job"},
+        "race": False, "benchmark": True,
+    },
+    {
+        "scheduledWorkoutDate": "2026-09-17", "workoutId": 1698439941,
+        "scheduleWorkoutId": 1777930137, "activityId": 24395968870,
+        "performanceRating": {"rating": "GOOD", "localizedRating": "Good Job"},
+        "race": False, "benchmark": False,
+    },
+    {
+        "scheduledWorkoutDate": "2026-09-19", "workoutId": 1701453828,
+        "scheduleWorkoutId": 1780843621, "activityId": None,
+        "performanceRating": None, "race": False, "benchmark": False,
+    },
+]
+
+
+async def _progress(client, payload=None):
+    client.connectapi.return_value = _LIVE_CALENDAR if payload is None else payload
+    app = _app(workouts, client)
+    text = await _text(app, "get_coach_plan_progress",
+                       {"plan_id": 1789330190, "start_date": "2026-09-13",
+                        "end_date": "2026-09-19"})
+    return json.loads(text), client
+
+
+@pytest.mark.asyncio
+async def test_surfaces_garmins_grade_for_each_completed_workout(mock_garmin_client):
+    """The rating exists nowhere else in this server.
+
+    It is Garmin Coach's assessment of execution against the prescription --
+    not the watch's training effect, which measures physiological load.
+    """
+    payload, _ = await _progress(mock_garmin_client)
+    done = payload["workouts"][0]
+    assert done["rating"] == "GOOD"
+    assert done["rating_text"] == "Good Job"
+    assert payload["graded_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_incomplete_workout_has_no_grade_and_no_activity(mock_garmin_client):
+    payload, _ = await _progress(mock_garmin_client)
+    upcoming = payload["workouts"][2]
+    assert upcoming["completed"] is False
+    assert "rating" not in upcoming and "activity_id" not in upcoming
+
+
+@pytest.mark.asyncio
+async def test_benchmark_flagged_only_when_true(mock_garmin_client):
+    """Garmin marks its own checkpoints; ordinary workouts stay uncluttered."""
+    payload, _ = await _progress(mock_garmin_client)
+    assert payload["workouts"][0]["benchmark"] is True
+    assert "benchmark" not in payload["workouts"][1]
+    assert not any("race" in w for w in payload["workouts"]), "race False must be omitted"
+
+
+@pytest.mark.asyncio
+async def test_calls_atp_api_with_the_date_range(mock_garmin_client):
+    _, client = await _progress(mock_garmin_client)
+    url = client.connectapi.call_args[0][0]
+    assert "/atp-api/atp/athlete/calendar" in url
+    assert "trainingplan-service" not in url
+    assert "startDate=2026-09-13" in url and "endDate=2026-09-19" in url
+
+
+@pytest.mark.asyncio
+async def test_empty_range_says_so_rather_than_returning_a_shell(mock_garmin_client):
+    payload_text = None
+    mock_garmin_client.connectapi.return_value = []
+    app = _app(workouts, mock_garmin_client)
+    payload_text = await _text(app, "get_coach_plan_progress",
+                               {"plan_id": 1, "start_date": "2026-01-01",
+                                "end_date": "2026-01-07"})
+    assert "No plan workouts" in payload_text
+
+
+@pytest.mark.asyncio
+async def test_bad_date_is_rejected(mock_garmin_client):
+    app = _app(workouts, mock_garmin_client)
+    out = await _text(app, "get_coach_plan_progress",
+                      {"plan_id": 1, "start_date": "13-09-2026",
+                       "end_date": "2026-09-19"})
+    assert "Error" in out or "format" in out.lower()
+
+
+# ─── get_coach_plans ──────────────────────────────────────────────────────
+
+_LIVE_ACTIVE = [{
+    "athletePlanId": 1789330190,
+    "athleteRace": {"raceDay": "2026-11-26", "raceName": "River Vale 5K"},
+    "goalTimeSeconds": 1860, "planCompleted": False, "workoutsPerWeek": 3,
+    "confidence": 78, "registrationDate": "2026-09-13T20:09:50.515+00:00",
+}]
+
+
+@pytest.mark.asyncio
+async def test_lists_active_plans_with_goal_and_confidence(mock_garmin_client):
+    mock_garmin_client.connectapi.side_effect = [_LIVE_ACTIVE, []]
+    payload = json.loads(
+        await _text(_app(workouts, mock_garmin_client), "get_coach_plans", {})
+    )
+    plan = payload["plans"][0]
+    assert plan["plan_id"] == 1789330190
+    assert plan["status"] == "active"
+    assert plan["goal_time"] == "31:00"
+    assert plan["confidence"] == 78
+
+
+@pytest.mark.asyncio
+async def test_completed_plans_are_labelled_and_skippable(mock_garmin_client):
+    finished = [dict(_LIVE_ACTIVE[0], athletePlanId=111, planCompleted=True)]
+    mock_garmin_client.connectapi.side_effect = [_LIVE_ACTIVE, finished]
+    payload = json.loads(
+        await _text(_app(workouts, mock_garmin_client), "get_coach_plans", {})
+    )
+    assert {p["status"] for p in payload["plans"]} == {"active", "completed"}
+
+    mock_garmin_client.connectapi.side_effect = [_LIVE_ACTIVE]
+    payload = json.loads(
+        await _text(_app(workouts, mock_garmin_client), "get_coach_plans",
+                    {"include_completed": False})
+    )
+    assert payload["count"] == 1 and payload["plans"][0]["status"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_no_plans_reports_plainly(mock_garmin_client):
+    """The deleted tool returned an empty list here, reading as a real answer."""
+    mock_garmin_client.connectapi.side_effect = [[], []]
+    out = await _text(_app(workouts, mock_garmin_client), "get_coach_plans", {})
+    assert "No Garmin Coach plans found" in out
+
+
+# ─── get_sensors ──────────────────────────────────────────────────────────
+
+# GET /gc-api/device-service/sensors — Garmin repeats a sensor per paired device
+_LIVE_SENSORS = [
+    {"deviceName": "HRM 600", "batteryStatus": "NEW", "batteryLevel": 93,
+     "sensorType": "HEART_RATE", "prioritySensor": False, "serialNumber": 33554456,
+     "softwareVersion": "5.2", "lastConnected": "2026-09-17T14:05:35.0",
+     "manufacturer": "GARMIN", "rechargeableSensorCapable": True},
+    {"deviceName": "HRM 600", "batteryStatus": "NEW", "batteryLevel": 93,
+     "sensorType": "HEART_RATE", "prioritySensor": False, "serialNumber": 33554456,
+     "softwareVersion": "5.2", "lastConnected": "2026-09-17T14:05:35.0",
+     "manufacturer": "GARMIN", "rechargeableSensorCapable": True},
+]
+
+
+@pytest.mark.asyncio
+async def test_sensor_battery_is_surfaced(mock_garmin_client):
+    """get_devices returns names and serials but no battery state."""
+    mock_garmin_client.connectapi.return_value = _LIVE_SENSORS
+    payload = json.loads(
+        await _text(_app(devices, mock_garmin_client), "get_sensors", {})
+    )
+    s = payload["sensors"][0]
+    assert s["name"] == "HRM 600"
+    assert s["battery_level"] == 93
+    assert s["last_connected"] == "2026-09-17T14:05:35.0"
+
+
+@pytest.mark.asyncio
+async def test_duplicate_pairings_are_collapsed(mock_garmin_client):
+    """Garmin lists the same strap once per paired device."""
+    mock_garmin_client.connectapi.return_value = _LIVE_SENSORS
+    payload = json.loads(
+        await _text(_app(devices, mock_garmin_client), "get_sensors", {})
+    )
+    assert payload["count"] == 1, "the same serial must not appear twice"
+
+
+@pytest.mark.asyncio
+async def test_no_sensors_reports_plainly(mock_garmin_client):
+    mock_garmin_client.connectapi.return_value = []
+    out = await _text(_app(devices, mock_garmin_client), "get_sensors", {})
+    assert "No paired sensors found" in out
