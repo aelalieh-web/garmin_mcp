@@ -43,9 +43,10 @@ anticipated when the tool was written.
   Two further points, from a parallel session. First, these fields look
   self-reported at registration rather than derived: `pre_plan_weekly_mileage`
   is 0, while this account logged four running-typed activities totalling
-  17.9 km in the twelve days before signup, about 5.6 miles a week. No
-  derivation rounds that to zero, which makes any match against measured data
-  weak evidence in either direction. Second, the display-unit flip proposed
+  17.9 km (11.1 mi) between 2026-09-01 and 09-13 inclusive — the thirteen days
+  up to signup — about 6.0 miles a week. No derivation rounds that to zero,
+  which makes any match against measured data weak evidence in either
+  direction. Second, the display-unit flip proposed
   earlier **will not discriminate**, since a value captured at registration does
   not change with display preference. It needs the athlete's recollection of
   what the setup flow asked for.
