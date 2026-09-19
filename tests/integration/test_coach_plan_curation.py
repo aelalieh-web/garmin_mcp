@@ -219,3 +219,117 @@ async def test_owner_id_is_not_exposed(mock_garmin_client):
     """ownerId is an account identifier with no analytical value."""
     for w in await _workouts(_app(mock_garmin_client), mock_garmin_client):
         assert "owner_id" not in w and "ownerId" not in w
+
+
+# ─── get_coach_plan_details, pinned to the live atp-api payload ───────────
+
+# Verbatim from GET /atp-api/atp/athlete/plan?lang=en&athletePlanId=…
+# captured from Garmin Connect's own web client on 2026-09-19.
+_LIVE_ATP_DETAIL = {
+    "athletePlanId": 1789330190,
+    "userPk": 2688052,
+    "registrationDate": "2026-09-13T20:09:50.515+00:00",
+    "athleteRace": {
+        "raceDay": "2026-11-26",
+        "raceName": "River Vale 5K",
+        "raceUrl": None,
+        "raceEventId": 29974702,
+        "raceEventUuid": None,
+    },
+    "goalTimeSeconds": 1860,
+    "planCompleted": False,
+    "workoutPlanId": 14,
+    "workoutPlanTypeId": 1,
+    "workoutCalendarDays": ["MONDAY", "TUESDAY", "THURSDAY", "SATURDAY"],
+    "longRunDay": "SATURDAY",
+    "workoutsPerWeek": 3,
+    "pause": None,
+    "quit": None,
+    "confidence": 78,
+    "prePlanWeeklyMileage": 0,
+    "prePlanTrainingPace": 617,
+    "athletePlanGoal": {"goal": "PACE", "localizedGoal": "Run with a time goal"},
+    "coach": {
+        "coachId": 2,
+        "contentfulModel": {
+            "contentType": "COACH",
+            "contentfulContentTypeId": "ATPCoach",
+            "contentfulContentId": "JeffGalloway",
+        },
+    },
+    "action": None,
+}
+
+
+async def _detail(client, payload=None):
+    client.connectapi.return_value = _LIVE_ATP_DETAIL if payload is None else payload
+    app = _app(client)
+    text = (await app.call_tool("get_coach_plan_details",
+                                {"plan_id": 1789330190}))[0][0].text
+    return json.loads(text), client
+
+
+@pytest.mark.asyncio
+async def test_calls_atp_api_not_trainingplan_service(mock_garmin_client):
+    """trainingplan-service returns [] for an adaptive plan and 404s by id.
+
+    Verified from an authenticated browser session: the adaptive plans live
+    behind atp-api. Pointing this at trainingplan-service would reintroduce the
+    exact bug three removed tools had.
+    """
+    _, client = await _detail(mock_garmin_client)
+    url = client.connectapi.call_args[0][0]
+    assert "/atp-api/atp/athlete/plan" in url
+    assert "athletePlanId=1789330190" in url
+    assert "trainingplan-service" not in url
+
+
+@pytest.mark.asyncio
+async def test_surfaces_the_goal_and_garmins_confidence_in_it(mock_garmin_client):
+    payload, _ = await _detail(mock_garmin_client)
+    assert payload["race_name"] == "River Vale 5K"
+    assert payload["race_day"] == "2026-11-26"
+    assert payload["goal_time_seconds"] == 1860
+    assert payload["goal_time"] == "31:00", "seconds are unreadable as a race goal"
+    assert payload["goal_type"] == "PACE"
+    assert payload["confidence"] == 78
+
+
+@pytest.mark.asyncio
+async def test_surfaces_the_training_week_and_coach(mock_garmin_client):
+    payload, _ = await _detail(mock_garmin_client)
+    assert payload["workout_days"] == ["MONDAY", "TUESDAY", "THURSDAY", "SATURDAY"]
+    assert payload["long_run_day"] == "SATURDAY"
+    assert payload["workouts_per_week"] == 3
+    assert payload["coach_key"] == "JeffGalloway"
+
+
+@pytest.mark.asyncio
+async def test_pause_and_quit_are_reported_as_booleans(mock_garmin_client):
+    """Garmin sends an object when set and null otherwise, not a flag."""
+    payload, _ = await _detail(mock_garmin_client)
+    assert payload["paused"] is False and payload["quit"] is False
+
+    stopped = dict(_LIVE_ATP_DETAIL, pause={"date": "2026-10-01"})
+    payload, _ = await _detail(mock_garmin_client, stopped)
+    assert payload["paused"] is True
+
+
+@pytest.mark.asyncio
+async def test_account_identifier_is_not_exposed(mock_garmin_client):
+    """userPk identifies the account and has no analytical value."""
+    payload, _ = await _detail(mock_garmin_client)
+    assert "userPk" not in payload and "user_pk" not in payload
+
+
+@pytest.mark.asyncio
+async def test_missing_plan_reports_rather_than_returning_an_empty_shell(
+    mock_garmin_client,
+):
+    """The failure that got three tools deleted: empty read as 'no plan'."""
+    payload_text = None
+    mock_garmin_client.connectapi.return_value = {}
+    app = _app(mock_garmin_client)
+    payload_text = (await app.call_tool("get_coach_plan_details",
+                                        {"plan_id": 999}))[0][0].text
+    assert "No adaptive training plan found" in payload_text

@@ -41,6 +41,7 @@ coverage.
 | Token import | `session_manager.py`, `oauth_provider.py`, `remote.py` | `create_session_from_token_blob`; login-page import + `POST /import-token`. Gated by `GARMIN_IMPORT_SECRET` + allowlist. |
 | 429 fail-fast login client | `oauth_provider.py` (`_new_login_client`) | Excludes 429 from garth's retry `status_forcelist` so a rate-limited login isn't amplified. |
 | Coach plan curation fix | `workouts.py` (`_get_garmin_coach_workouts`) | Surfaces the `trainingPlanDetailsDTO` fields that exist — race goal, workouts per week, registration date. Upstream reads only `trainingType`, which adaptive plans do not have. |
+| Adaptive plan detail (1 tool) | `workouts.py` (`get_coach_plan_details`) | Reads `/atp-api/atp/athlete/plan`, the endpoint Garmin Connect's own web client uses. Returns the race goal, Garmin's confidence in it, the training week and the coach — none of which the workout feed carries. |
 | Coverage additions (1 tool) | `gear_management.py` | `get_gear_activities` — the reverse of `get_activity_gear`, for auditing a shoe's or bike's accumulated mileage. Three training-plan tools added alongside it were removed on 2026-09-19; see the invariant below. |
 | Railway deploy | `railway.json`, `Dockerfile.remote`, `config.py` | `railway.json` pins the Dockerfile builder; `config.port` honors `$PORT`. |
 
@@ -126,9 +127,14 @@ coverage.
   (`get_training_plans`, `get_training_plan_details`,
   `get_adaptive_training_plan_details`) were removed for that reason — an empty
   list reads as "you have no plans", which is worse than the tool not existing.
-  The working source is the GraphQL `trainingPlanScalar` query already used by
-  `_get_garmin_coach_workouts`. Do not rebuild plan tools on the REST paths; if
-  plan data is needed, extend that query's curation instead.
+  Two sources work, and neither is `trainingplan-service`: the GraphQL
+  `trainingPlanScalar` query used by `_get_garmin_coach_workouts`, and
+  **`/atp-api/atp/athlete/plan?lang=en&athletePlanId=<id>`**, which is what
+  Garmin Connect's own web client calls and what `get_coach_plan_details` uses.
+  Confirmed on 2026-09-19 by capturing the browser's own traffic:
+  `trainingplan-service/trainingplan/plans` returned `{"trainingPlanList": []}`
+  even from an authenticated browser session with the plan active. Do not
+  rebuild plan tools on `trainingplan-service`.
 - **`_get_garmin_coach_workouts` must surface the `trainingPlanDetailsDTO`
   fields that exist.** Upstream reads only `trainingType`, absent on adaptive
   plans, so the key resolved to `None`, was dropped by the strip-`None` filter,
@@ -327,12 +333,12 @@ taken whole.
     path in remote mode. Do not add it to `_GUARDED` to make the test pass —
     `_GUARDED` records tools that already refuse.
 
-**Definition of done:** suite green, invariants intact, tool counts stdio 164 / remote 162.
+**Definition of done:** suite green, invariants intact, tool counts stdio 165 / remote 163.
 
 ## Expected state after a clean build
 
-- Full suite: `uv run pytest -m "not e2e"` → all pass (759 at time of writing).
-- Tool counts: **stdio 164**, **remote 162** (auth tools are stdio-only).
+- Full suite: `uv run pytest -m "not e2e"` → all pass (769 at time of writing).
+- Tool counts: **stdio 165**, **remote 163** (auth tools are stdio-only).
 - Documented counts are test-enforced: `tests/unit/test_documented_counts.py`
   fails when `CLAUDE.md`, `FORK.md` or `README.md` disagrees with the tools
   actually registered, so these figures cannot silently rot again.
