@@ -558,7 +558,16 @@ def _curate_scheduled_workout(scheduled: dict) -> dict:
         "scheduled_workout_id": scheduled.get('scheduledWorkoutId'),
         "workout_uuid": scheduled.get('workoutUuid'),
         "workout_id": scheduled.get('workoutId'),
-        "training_plan_id": scheduled.get('trainingPlanId'),
+        # Garmin carries the plan id in a different field per plan family:
+        # atpPlanId (adaptive / Garmin Coach), itpPlanId, fbtAdaptivePlanId,
+        # selfGuidedPlanId. Reading only two of them loses the linkage entirely
+        # on an ATP plan, where the other three are null. Verified 2026-09-19.
+        "training_plan_id": (
+            scheduled.get('trainingPlanId')
+            or scheduled.get('atpPlanId')
+            or scheduled.get('itpPlanId')
+            or scheduled.get('selfGuidedPlanId')
+        ),
         "fbt_adaptive_plan_id": scheduled.get('fbtAdaptivePlanId'),
         "tp_type": scheduled.get('tpType'),
         "name": scheduled.get('workoutName'),
@@ -588,9 +597,18 @@ def _curate_scheduled_workout(scheduled: dict) -> dict:
     if scheduled.get('estimatedDistanceInMeters'):
         summary['estimated_distance_meters'] = scheduled.get('estimatedDistanceInMeters')
 
-    # If completed, include the activity ID
+    # Garmin will not reshuffle a protected workout when the plan adapts, so it
+    # marks a fixed point in the schedule (a benchmark or the race itself).
+    if scheduled.get('protected'):
+        summary['protected'] = True
+
+    # If completed, include the activity ID and when it was actually performed.
+    # scheduleDate is when the plan asked for it; this is when it happened, and
+    # the gap between them is what adherence over a long plan is made of.
     if is_completed:
         summary['activity_id'] = scheduled.get('associatedActivityId')
+        if scheduled.get('associatedActivityDateTime'):
+            summary['performed_at'] = scheduled.get('associatedActivityDateTime')
 
     # Remove None values
     return {k: v for k, v in summary.items() if v is not None}

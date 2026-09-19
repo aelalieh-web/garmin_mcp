@@ -38,15 +38,33 @@ _LIVE_ATP_PLAN = {
         "planCompleted": False,
         "workoutPlanTypeId": 1,
     },
+    # Verbatim from the live feed. Note what is NOT here: workoutPhrase,
+    # estimatedDurationInSecs, trainingPlanId and fbtAdaptivePlanId all exist in
+    # the schema but Garmin leaves them null on an ATP plan -- the plan id
+    # arrives in atpPlanId instead.
     "workoutScheduleSummaries": [
         {
-            "calendarDate": "2026-09-19",
+            "scheduledWorkoutId": 1776111029,
+            "workoutId": 1696625519,
+            "workoutName": "Benchmark Run",
+            "workoutType": "running",
+            "scheduleDate": "2026-09-14",
+            "atpPlanId": 1789330190,
+            "associatedActivityId": 24359243048,
+            "associatedActivityDateTime": "2026-09-14T11:54:36.0",
+            "protected": True,
+            "race": False,
+        },
+        {
             "scheduledWorkoutId": 1780843621,
             "workoutId": 1701453828,
-            "workoutName": "Run Walk Run®",
-            "sportType": {"sportTypeKey": "running"},
-            "completed": False,
-        }
+            "workoutName": "Run Walk Run\u00ae",
+            "workoutType": "running",
+            "scheduleDate": "2026-09-19",
+            "atpPlanId": 1789330190,
+            "protected": False,
+            "race": False,
+        },
     ],
 }
 
@@ -153,3 +171,51 @@ async def test_gear_activities_tolerates_null_distance(mock_garmin_client):
         (await app.call_tool("get_gear_activities", {"gear_uuid": "g"}))[0][0].text
     )
     assert payload["total_distance_m"] == 100.0
+
+
+# ─── workout-level curation, pinned to the same live payload ──────────────
+
+async def _workouts(app, client):
+    client.query_garmin_graphql.return_value = _graphql([_LIVE_ATP_PLAN])
+    text = (await app.call_tool("get_garmin_coach_workouts",
+                                {"calendar_date": "2026-09-19"}))[0][0].text
+    return json.loads(text)["workouts"]
+
+
+@pytest.mark.asyncio
+async def test_plan_id_is_read_from_atp_plan_id(mock_garmin_client):
+    """ATP plans carry the plan id in atpPlanId; trainingPlanId is null.
+
+    The curation read only trainingPlanId and fbtAdaptivePlanId, so on an
+    adaptive plan the per-workout linkage was lost entirely.
+    """
+    done, upcoming = await _workouts(_app(mock_garmin_client), mock_garmin_client)
+    assert done["training_plan_id"] == 1789330190
+    assert upcoming["training_plan_id"] == 1789330190
+
+
+@pytest.mark.asyncio
+async def test_performed_at_distinguishes_prescribed_from_actual(mock_garmin_client):
+    """scheduleDate is when the plan asked; performed_at is when it happened."""
+    done, upcoming = await _workouts(_app(mock_garmin_client), mock_garmin_client)
+    assert done["date"] == "2026-09-14"
+    assert done["performed_at"] == "2026-09-14T11:54:36.0"
+    assert done["completed"] is True
+    assert done["activity_id"] == 24359243048
+    assert "performed_at" not in upcoming and upcoming["completed"] is False
+
+
+@pytest.mark.asyncio
+async def test_protected_marks_a_fixed_point_in_the_plan(mock_garmin_client):
+    """Garmin will not reshuffle a protected workout when the plan adapts."""
+    done, upcoming = await _workouts(_app(mock_garmin_client), mock_garmin_client)
+    assert done["protected"] is True
+    # False is omitted rather than reported -- most workouts are unprotected.
+    assert "protected" not in upcoming
+
+
+@pytest.mark.asyncio
+async def test_owner_id_is_not_exposed(mock_garmin_client):
+    """ownerId is an account identifier with no analytical value."""
+    for w in await _workouts(_app(mock_garmin_client), mock_garmin_client):
+        assert "owner_id" not in w and "ownerId" not in w

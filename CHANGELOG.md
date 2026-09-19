@@ -5,6 +5,43 @@ All notable changes **this fork** makes relative to its upstream base,
 invariants behind these and the upstream-sync procedure. The authoritative diff is
 `git diff upstream/main...main` once the upstream remote is wired.
 
+## Coach workout curation: plan linkage, and prescribed vs performed — 2026-09-19
+
+A second audit, one level below the plan-level fix earlier today. It found much
+less, which is the useful result: at the workout level the curation was already
+reading the right key names.
+
+**`workoutPhrase` is not a bug.** The workout's training intent
+(`AEROBIC_BASE`, `ANAEROBIC_SPEED`) is read correctly — Garmin simply leaves it
+null on an ATP plan, along with `estimatedDurationInSecs`,
+`estimatedDistanceInMeters`, `tpPlanName`, `tpType` and `workoutUuid`. Nothing
+to fix; the data is not sent.
+
+**One real gap.** Garmin carries the plan id in a different field per plan
+family — `atpPlanId`, `itpPlanId`, `fbtAdaptivePlanId`, `selfGuidedPlanId`. The
+curation read two of them, and neither is the one an adaptive plan uses, so
+`training_plan_id` was null on every workout of a Coach plan. Now falls back
+across all four.
+
+**Two fields added:**
+
+- **`performed_at`** (`associatedActivityDateTime`) — when the workout was
+  actually done, against `scheduleDate` for when the plan asked for it. The gap
+  between the two is what adherence over a twelve-week plan is made of, and it
+  was not previously visible.
+- **`protected`** — Garmin will not reshuffle a protected workout when the plan
+  adapts, so it marks a fixed point (a benchmark, or the race). Emitted only
+  when true; most workouts are unprotected.
+
+**Deliberately not exposed:** `ownerId`, an account identifier with no
+analytical value, asserted absent by a test.
+
+The fixture in `test_coach_plan_curation.py` is now the live payload verbatim —
+two real workouts, one completed and protected, one upcoming — so the nulls that
+make this fragile are pinned alongside the values.
+
+Tests: +4. Result: 763 passed.
+
 ## Upstream sync 2026-09-19 — 3 commits, 1 new tool
 
 **`get_energy_balance`** — derives a composition-based TDEE from logged intake,
