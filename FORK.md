@@ -327,12 +327,12 @@ taken whole.
     path in remote mode. Do not add it to `_GUARDED` to make the test pass —
     `_GUARDED` records tools that already refuse.
 
-**Definition of done:** suite green, invariants intact, tool counts stdio 163 / remote 161.
+**Definition of done:** suite green, invariants intact, tool counts stdio 164 / remote 162.
 
 ## Expected state after a clean build
 
-- Full suite: `uv run pytest -m "not e2e"` → all pass (742 at time of writing).
-- Tool counts: **stdio 163**, **remote 161** (auth tools are stdio-only).
+- Full suite: `uv run pytest -m "not e2e"` → all pass (759 at time of writing).
+- Tool counts: **stdio 164**, **remote 162** (auth tools are stdio-only).
 - Documented counts are test-enforced: `tests/unit/test_documented_counts.py`
   fails when `CLAUDE.md`, `FORK.md` or `README.md` disagrees with the tools
   actually registered, so these figures cannot silently rot again.
@@ -342,7 +342,8 @@ taken whole.
 Integrated via PRs #1–#6 on this fork, then synced with upstream on 2026-06-17
 (upstream PRs #140/#141/#142, Issues #137/#138/#139), and again on 2026-09-02
 (17 upstream commits: 10 new tools, 7 fixes — the first sync after the
-stdio/remote split was collapsed, and the first needing no tool migration), and
-on 2026-09-10 (9 upstream commits: 2 new tools, 7 fixes). See `CHANGELOG.md` for a
+stdio/remote split was collapsed, and the first needing no tool migration), on
+2026-09-10 (9 upstream commits: 2 new tools, 7 fixes), and on 2026-09-19
+(3 upstream commits: `get_energy_balance` plus docs). See `CHANGELOG.md` for a
 categorized list of every change relative to upstream, and `README.md` (Remote
 Mode, Security, Token import / refresh) for operational detail.
