@@ -1345,12 +1345,16 @@ async def test_get_garmin_coach_workout_tools(
     result_data = json_module.loads(result[0][0].text)
     assert result_data["date"] == "2024-01-15"
     assert result_data["training_plans"] == ["5K Training Plan"]
+    # workouts_per_week is present because this fork surfaces the fields that
+    # actually exist in trainingPlanDetailsDTO. Upstream read only trainingType
+    # and dropped the rest -- including, on a real adaptive plan, the race goal.
     assert result_data["plans"] == [
         {
             "name": "5K Training Plan",
             "training_plan_id": 12345,
             "classification": "FBT_ADAPTIVE",
             "training_type": "RUNNING",
+            "workouts_per_week": 4,
         }
     ]
     assert result_data["count"] == 2
