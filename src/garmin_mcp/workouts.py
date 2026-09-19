@@ -1503,6 +1503,11 @@ def register_tools(app):
         None of this is in get_garmin_coach_workouts, which returns the
         workouts and a little plan metadata but not the plan's intent.
 
+        `pre_plan_training_pace_seconds` is a bare number whose unit Garmin
+        does not state. Evidence points to seconds-per-MILE but it is not
+        confirmed, so do not convert it or compare it to a per-kilometre pace
+        without saying which reading you assumed.
+
         Args:
             plan_id: Adaptive plan id — the `training_plan_id` reported by
                 get_garmin_coach_workouts.
@@ -1554,28 +1559,56 @@ def register_tools(app):
                 "long_run_day": data.get("longRunDay"),
                 "coach_key": coach_model.get("contentfulContentId"),
                 "coach_id": coach.get("coachId"),
-                # What the plan was calibrated from at registration.
+                # What the plan was calibrated from at registration
+                # (2026-09-13T20:09:50Z on this account).
                 #
-                # UNIT UNVERIFIED and formally unresolved. Garmin sends a
-                # bare number. What is settled is magnitude only:
+                # UNIT UNVERIFIED and formally unresolved. Garmin sends a bare
+                # number (617 here). Magnitude is settled, but only against
+                # data that EXISTED ON REGISTRATION DAY: a value captured on
+                # the 13th cannot have been computed from a session on the
+                # 14th or the 17th. Two earlier readings here leaned on
+                # post-registration sessions -- one on each side of the
+                # question -- and both are gone.
                 #
-                #   617 as s/mile = 383 s/km, within 4% of this account's
-                #     measured continuous running (397 s/km -- the 755 m / 300 s
-                #     benchmark interval at HR 165, cadence 158).
-                #   617 as s/km   = 16:33/mile, between measured running at
-                #     397 s/km and measured walking at 743 s/km. It sits among
-                #     the whole-activity run-walk composites (551-588 s/km
-                #     across four pre-registration runs), which is why an
-                #     earlier per-km reading looked convincing.
+                # Measured across the four pre-registration run sessions
+                # (09-02, 09-07, 09-09, 09-11):
                 #
-                # PROVENANCE IS OPEN. The athlete confirms he entered 0 for
-                # weekly mileage at registration, so that zero is his input and
-                # says nothing about Garmin's method -- an earlier note here
-                # argued the opposite and was wrong. Whether the pace was
-                # entered, defaulted, or derived is unknown, and the branches
-                # point opposite ways: derived favours per-km, since 617 falls
-                # among his composites; a default favours per-mile, since
-                # 10:17/mi is a plausible beginner default and 16:33/mi is not.
+                #   run segments     336.8-397.7 s/km per session
+                #                    308.6-424.5 s/km per interval
+                #   walk segments    710.3-733.1 s/km per session
+                #   whole activity   551.1-588.0 s/km (run-walk composites)
+                #
+                #   617 as s/mile = 383.4 s/km, inside both run bands.
+                #   617 as s/km   = 16:33/mile, above every run figure by 45%
+                #     or more and above every composite by 4.9% or more. It
+                #     matches nothing that existed when it was captured.
+                #
+                # The asymmetry is the argument. Landing inside a 116-second
+                # band does not prove per-mile; fitting nothing at all is what
+                # sinks per-km.
+                #
+                # A SECOND, INDEPENDENT CHECK, from this payload alone. The
+                # goal is 31:00 over 5K, i.e. 372.0 s/km. Against a per-mile
+                # baseline that goal is 3.0% faster -- an ordinary ten-week
+                # target. Against a per-km baseline it is 39.7% faster. Garmin
+                # publishes `confidence` 78 for it, and that number is
+                # Garmin's own, computed from baseline and goal together. No
+                # coaching system rates a 40% improvement in ten weeks at 78.
+                # This check needs no activity data, so it cannot be spoiled
+                # by a stale or misdated snapshot.
+                #
+                # PROVENANCE. The athlete reports entering 0 for weekly
+                # mileage and nothing at all for pace, which leaves defaulted
+                # or derived. Derived favours per-mile, per the bands above. A
+                # default favours per-mile too: 10:17/mi is a plausible
+                # beginner default and 16:33/mi is not a pace anyone would be
+                # defaulted to. Both surviving branches point the same way.
+                #
+                # It stays UNRESOLVED because no branch is directly observed,
+                # NOT because the readings are balanced -- they are not, and
+                # nothing currently argues for per-km. If the setup flow did
+                # ask for pace and he simply does not recall, "entered"
+                # returns and the derived argument weakens.
                 #
                 # Flipping the account's display units will NOT settle it: a
                 # value captured at registration does not change with display
