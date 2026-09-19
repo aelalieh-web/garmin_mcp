@@ -597,14 +597,24 @@ def _curate_scheduled_workout(scheduled: dict) -> dict:
     if scheduled.get('estimatedDistanceInMeters'):
         summary['estimated_distance_meters'] = scheduled.get('estimatedDistanceInMeters')
 
-    # Garmin will not reshuffle a protected workout when the plan adapts, so it
-    # marks a fixed point in the schedule (a benchmark or the race itself).
+    # Garmin will not reshuffle a protected workout when the plan adapts.
+    #
+    # `protected` here and `benchmark` from get_coach_plan_progress are DIFFERENT
+    # FIELDS from different services -- this feed has no `benchmark` key and the
+    # ATP calendar has no `protected` key. They coincided on the one benchmark
+    # observed (2026-09-14), which is not enough to conclude they mean the same
+    # thing. Do not treat either as an alias for the other.
     if scheduled.get('protected'):
         summary['protected'] = True
 
     # If completed, include the activity ID and when it was actually performed.
     # scheduleDate is when the plan asked for it; this is when it happened, and
     # the gap between them is what adherence over a long plan is made of.
+    #
+    # performed_at is DEVICE-LOCAL and carries no zone designator. Verified
+    # 2026-09-19: it is byte-identical to the activity's start_time_local, and
+    # four hours behind its start_time_gmt. Parsing it as UTC shifts an evening
+    # session onto the next day.
     if is_completed:
         summary['activity_id'] = scheduled.get('associatedActivityId')
         if scheduled.get('associatedActivityDateTime'):
@@ -1169,6 +1179,16 @@ def register_tools(app):
         This is the preferred tool for Garmin Coach requests. The legacy
         get_training_plan_workouts tool returns the same data; do not call both.
 
+        **This under-counts a week.** An adaptive plan reserves days before it
+        generates workouts for them, and only generated ones appear here. Use
+        get_coach_plan_progress for the week's true shape — it also returns the
+        reserved-but-unfilled days that Garmin's app labels "Stay Tuned for
+        Details".
+
+        `performed_at` on a completed workout is device-local with no zone
+        designator (identical to the activity's start_time_local). Parsing it
+        as UTC reads it hours out.
+
         Adaptive Coach plans typically expose workout_uuid; other plan families
         may expose numeric workout_id. Pass whichever identifier is present to
         get_workout_by_id. Rest-day UUIDs may return minimal detail without
@@ -1535,6 +1555,15 @@ def register_tools(app):
                 "coach_key": coach_model.get("contentfulContentId"),
                 "coach_id": coach.get("coachId"),
                 # What the plan was calibrated from at registration.
+                #
+                # UNIT UNVERIFIED. Garmin sends a bare number with no unit and
+                # one sample is not enough to settle it: 617 matches this
+                # account's measured seconds-per-kilometre almost exactly, but
+                # reading it as seconds-per-mile is what makes the plan's goal
+                # coherent (a 3% improvement rather than 40%). Both readings
+                # reconcile if it is running pace while the recorded averages
+                # include walk intervals. Settle it by flipping the account
+                # between metric and statute display units and re-fetching.
                 "pre_plan_weekly_mileage": data.get("prePlanWeeklyMileage"),
                 "pre_plan_training_pace_seconds": data.get("prePlanTrainingPace"),
             }
@@ -1550,20 +1579,30 @@ def register_tools(app):
     async def get_coach_plan_progress(
         ctx: Context, plan_id: Union[int, str], start_date: str, end_date: str
     ) -> str:
-        """Get Garmin Coach's grade for each workout in a date range.
+        """Get a plan week's true shape, and Garmin's grade for each workout.
 
-        Returns one entry per scheduled workout with the activity that fulfilled
-        it and, for completed ones, Garmin Coach's own **performance rating** —
-        its assessment of how the session was executed against what the plan
-        prescribed. That rating exists nowhere else in this server: it is not in
-        the workout feed, and it is not the watch's training effect, which
-        measures physiological load rather than adherence to the prescription.
+        **This is the only tool that sees the whole week.** An adaptive plan
+        generates concrete workouts only a short window ahead, and
+        get_garmin_coach_workouts returns just those. This endpoint also returns
+        the days the plan has reserved but not yet filled — the ones Garmin's
+        app shows as "Stay Tuned for Details". They arrive with a `date` and
+        `completed: false` and **no `workout_id` or `scheduled_workout_id`**.
 
-        Also flags benchmark workouts, the plan's own checkpoints, and race days.
+        So for the same range the two tools disagree on purpose, and reading the
+        workout feed alone **under-counts the week**. Ask this tool how many
+        sessions a week holds; ask get_garmin_coach_workouts what they are.
+
+        For completed workouts it returns `activity_id` and Garmin Coach's own
+        `rating`. The rating is per-workout and distinct from the watch's
+        training effect, which measures physiological load. What moves it is
+        **not documented here because it has not been observed** — every sample
+        so far has been GOOD. Do not infer a scale from a single value.
+
+        Also flags `benchmark` workouts and `race` days, each only when true.
 
         Args:
             plan_id: Adaptive plan id (`training_plan_id` from
-                get_garmin_coach_workouts).
+                get_garmin_coach_workouts, or `plan_id` from get_coach_plans).
             start_date: Start date, YYYY-MM-DD.
             end_date: End date, YYYY-MM-DD.
         """

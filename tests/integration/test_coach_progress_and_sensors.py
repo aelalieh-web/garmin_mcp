@@ -208,3 +208,48 @@ async def test_no_sensors_reports_plainly(mock_garmin_client):
     mock_garmin_client.connectapi.return_value = []
     out = await _text(_app(devices, mock_garmin_client), "get_sensors", {})
     assert "No paired sensors found" in out
+
+
+# ─── reserved-but-unfilled days ("Stay Tuned for Details") ───────────────
+
+# An adaptive plan reserves days before it generates workouts for them. The ATP
+# calendar returns those days; the GraphQL workout feed does not, so reading the
+# feed alone under-counts the week. Shape confirmed against plan 1789330190 over
+# 2026-09-13..2026-09-26: 7 calendar entries against 5 generated workouts.
+_PLACEHOLDER_DAY = {
+    "scheduledWorkoutDate": "2026-09-24", "workoutId": None,
+    "scheduleWorkoutId": None, "activityId": None,
+    "performanceRating": None, "race": False, "benchmark": False,
+}
+
+
+@pytest.mark.asyncio
+async def test_reserved_days_are_returned_with_a_date_and_nothing_else(
+    mock_garmin_client,
+):
+    """The week's real shape is only visible here.
+
+    A reserved day has no workout_id and no scheduled_workout_id -- there is no
+    workout yet. It must still be counted, or a caller planning the week sees
+    fewer sessions than the plan holds.
+    """
+    payload, _ = await _progress(
+        mock_garmin_client, _LIVE_CALENDAR + [_PLACEHOLDER_DAY]
+    )
+    reserved = payload["workouts"][-1]
+    assert reserved["date"] == "2026-09-24"
+    assert reserved["completed"] is False
+    assert "workout_id" not in reserved
+    assert "scheduled_workout_id" not in reserved
+    assert "activity_id" not in reserved
+
+
+@pytest.mark.asyncio
+async def test_reserved_days_count_toward_the_week_but_not_the_grades(
+    mock_garmin_client,
+):
+    payload, _ = await _progress(
+        mock_garmin_client, _LIVE_CALENDAR + [_PLACEHOLDER_DAY]
+    )
+    assert payload["count"] == 4, "a reserved day is part of the week"
+    assert payload["graded_count"] == 2, "but it cannot be graded"
