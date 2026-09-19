@@ -40,7 +40,8 @@ coverage.
 | Email allowlist | `config.py`, `oauth_provider.py` | `GARMIN_ALLOWED_EMAILS`; enforced in `handle_login_callback` before any Garmin contact. |
 | Token import | `session_manager.py`, `oauth_provider.py`, `remote.py` | `create_session_from_token_blob`; login-page import + `POST /import-token`. Gated by `GARMIN_IMPORT_SECRET` + allowlist. |
 | 429 fail-fast login client | `oauth_provider.py` (`_new_login_client`) | Excludes 429 from garth's retry `status_forcelist` so a rate-limited login isn't amplified. |
-| Coverage additions (4 tools) | `workouts.py`, `gear_management.py` | `get_training_plans`, `get_training_plan_details`, `get_adaptive_training_plan_details`, `get_gear_activities` — gaps found auditing this fork against the garminconnect library. |
+| Coach plan curation fix | `workouts.py` (`_get_garmin_coach_workouts`) | Surfaces the `trainingPlanDetailsDTO` fields that exist — race goal, workouts per week, registration date. Upstream reads only `trainingType`, which adaptive plans do not have. |
+| Coverage additions (1 tool) | `gear_management.py` | `get_gear_activities` — the reverse of `get_activity_gear`, for auditing a shoe's or bike's accumulated mileage. Three training-plan tools added alongside it were removed on 2026-09-19; see the invariant below. |
 | Railway deploy | `railway.json`, `Dockerfile.remote`, `config.py` | `railway.json` pins the Dockerfile builder; `config.port` honors `$PORT`. |
 
 ## Invariants that must NOT regress
@@ -117,6 +118,23 @@ coverage.
   including new ones, since it detects the calls rather than listing files. Two
   dismissed CodeQL alerts rest on this exclusion, and a dismissal stays closed
   even after the exclusion breaks.
+- **Training-plan data comes from GraphQL, not `trainingplan-service` REST.**
+  Verified against a live enrolled adaptive (Garmin Coach) plan on 2026-09-19:
+  `/trainingplan-service/trainingplan/plans` returns an **empty list** while a
+  plan is active, and `.../fbt-adaptive/{plan_id}` returns **404** for a plan id
+  taken from the working feed. Three tools built on those endpoints
+  (`get_training_plans`, `get_training_plan_details`,
+  `get_adaptive_training_plan_details`) were removed for that reason — an empty
+  list reads as "you have no plans", which is worse than the tool not existing.
+  The working source is the GraphQL `trainingPlanScalar` query already used by
+  `_get_garmin_coach_workouts`. Do not rebuild plan tools on the REST paths; if
+  plan data is needed, extend that query's curation instead.
+- **`_get_garmin_coach_workouts` must surface the `trainingPlanDetailsDTO`
+  fields that exist.** Upstream reads only `trainingType`, absent on adaptive
+  plans, so the key resolved to `None`, was dropped by the strip-`None` filter,
+  and the whole DTO — the athlete's race goal included — was discarded.
+  `tests/integration/test_coach_plan_curation.py` pins this against a real ATP
+  payload; an upstream merge that reverts the curation fails it.
 - **Per-user state is scoped by `user_id` in remote mode.** The analytics
   saved-report store is per-user; a shared file lets one authenticated user read
   or overwrite another's definitions.
@@ -309,12 +327,12 @@ taken whole.
     path in remote mode. Do not add it to `_GUARDED` to make the test pass —
     `_GUARDED` records tools that already refuse.
 
-**Definition of done:** suite green, invariants intact, tool counts stdio 166 / remote 164.
+**Definition of done:** suite green, invariants intact, tool counts stdio 163 / remote 161.
 
 ## Expected state after a clean build
 
-- Full suite: `uv run pytest -m "not e2e"` → all pass (746 at time of writing).
-- Tool counts: **stdio 166**, **remote 164** (auth tools are stdio-only).
+- Full suite: `uv run pytest -m "not e2e"` → all pass (742 at time of writing).
+- Tool counts: **stdio 163**, **remote 161** (auth tools are stdio-only).
 - Documented counts are test-enforced: `tests/unit/test_documented_counts.py`
   fails when `CLAUDE.md`, `FORK.md` or `README.md` disagrees with the tools
   actually registered, so these figures cannot silently rot again.

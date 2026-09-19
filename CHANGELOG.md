@@ -5,6 +5,51 @@ All notable changes **this fork** makes relative to its upstream base,
 invariants behind these and the upstream-sync procedure. The authoritative diff is
 `git diff upstream/main...main` once the upstream remote is wired.
 
+## Coach plan tools: three removed, one fixed — 2026-09-19
+
+An enrolled Garmin Coach plan finally existed to test against, and it showed the
+three training-plan tools added on 2026-09-02 were broken — exactly the risk
+flagged when they shipped, and for exactly the predicted reason.
+
+**Removed.** Built on `trainingplan-service` REST, which does not serve an
+enrolled adaptive plan:
+
+- `get_training_plans` → `/plans` returned an **empty list** while plan
+  `1789330190` was active. It reported "you have no plans", which is worse than
+  no tool: an error is a signal, an empty list is a wrong answer.
+- `get_adaptive_training_plan_details` → `.../fbt-adaptive/{id}` returned
+  **404** for a plan id taken from the working feed.
+- `get_training_plan_details` → same dead family, untested.
+
+**Fixed, and this is where the data actually was.** Upstream's
+`_get_garmin_coach_workouts` reads the plan's `trainingPlanDetailsDTO` but picks
+only `trainingType` — a key adaptive plans do not have. It resolved to `None`,
+the strip-`None` filter dropped it, and the entire DTO went with it. The tool
+could return nothing but an id and a classification.
+
+The DTO in fact carries the plan's goal and shape, now surfaced:
+
+```
+race_name, race_day, workouts_per_week,
+remaining_workouts_this_week, registration_date, plan_completed
+```
+
+For this account that is a 5K on 2026-11-26, three sessions a week — the thing
+an adaptive plan is *for*, previously discarded on every call.
+
+**Upstream's own test proved the bug.** Its fixture contains
+`workoutsPerWeek: 4`, and its assertion expected that field to be absent from
+the output. Surfacing the real fields made that assertion fail — upstream was
+asserting its own data loss. The expectation was corrected rather than silenced.
+
+`tests/integration/test_coach_plan_curation.py` pins the curation against the
+live ATP payload verbatim, including the two facts that make it fragile:
+`planName` is `None` for adaptive plans, and there is no `trainingType` key.
+Verified non-vacuous by restoring upstream's curation, which fails it on
+`KeyError: 'race_name'`.
+
+Tool counts stdio 166 → 163 / remote 164 → 161. Result: 746 passed.
+
 ## Availability audit: what is left to pull in — 2026-09-10
 
 Surveyed every source this fork draws from, to answer whether anything remains
