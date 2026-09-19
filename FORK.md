@@ -112,6 +112,28 @@ coverage.
   client captured at configure() time: that would hand one user's Garmin session
   to another. `test_remote_mode_contract.py` fails if a registered module is
   left unconfigured.
+- **The workout feed under-counts a plan week; the ATP calendar does not.**
+  An adaptive plan reserves days before generating workouts for them. The
+  GraphQL `trainingPlanScalar` feed behind `get_garmin_coach_workouts` returns
+  only generated workouts; `/atp-api/atp/athlete/calendar` behind
+  `get_coach_plan_progress` also returns the reserved days, which arrive with a
+  date and `completed: false` and **no workout or scheduled-workout id** (the
+  "Stay Tuned for Details" entries in Garmin's app). Measured on plan
+  1789330190 over 2026-09-13..09-26: 7 calendar entries against 5 generated
+  workouts. Anything answering "how many sessions this week" from the feed
+  alone is wrong. Pinned by `test_coach_progress_and_sensors.py`.
+- **`protected` and `benchmark` are different fields, not aliases.**
+  `protected` comes from the GraphQL workout feed, `benchmark` from the ATP
+  calendar; neither service sends the other's key. They coincided on the single
+  benchmark observed, which does not establish that they mean the same thing.
+  Do not collapse them.
+- **`performed_at` is device-local and carries no zone designator**, identical
+  to the activity's `start_time_local` and four hours behind its
+  `start_time_gmt` for this account. Appending `Z` when parsing shifts evening
+  sessions onto the next day.
+- **`performanceRating` semantics are unobserved.** Every sample so far is
+  `GOOD`. Describe it as a per-workout rating from Garmin Coach; do not
+  document a scale or what moves it until a different value appears.
 - **No test performing a real Garmin login runs in the default CI selection.**
   This repository is public, so build logs are public: such a test prints live
   account data into them. Any module doing live auth must carry
@@ -338,7 +360,7 @@ taken whole.
 
 ## Expected state after a clean build
 
-- Full suite: `uv run pytest -m "not e2e"` → all pass (781 at time of writing).
+- Full suite: `uv run pytest -m "not e2e"` → all pass (783 at time of writing).
 - Tool counts: **stdio 168**, **remote 166** (auth tools are stdio-only).
 - Documented counts are test-enforced: `tests/unit/test_documented_counts.py`
   fails when `CLAUDE.md`, `FORK.md` or `README.md` disagrees with the tools

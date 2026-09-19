@@ -5,6 +5,47 @@ All notable changes **this fork** makes relative to its upstream base,
 invariants behind these and the upstream-sync procedure. The authoritative diff is
 `git diff upstream/main...main` once the upstream remote is wired.
 
+## Documented what the new Coach tools actually return — 2026-09-19
+
+A review from a parallel session found a behaviour worth knowing and three
+claims that outran the evidence. No tool behaviour changed; the documentation
+now matches what the endpoints do.
+
+**The finding: the workout feed under-counts a plan week.** An adaptive plan
+reserves days before generating workouts for them. `get_garmin_coach_workouts`
+returns only generated ones; `get_coach_plan_progress` also returns the reserved
+days — a `date` and `completed: false` with no ids, the "Stay Tuned for Details"
+entries in Garmin's app. Over 2026-09-13..09-26 that is 7 entries against 5.
+This is the only way to see a week's true shape, and nothing said so. Now in the
+docstrings of both tools, in `FORK.md`, and pinned by a test.
+
+It falls straight out of the implementation — `completed` is a bool so `False`
+survives the strip-`None` pass while the null ids do not — but it was not
+anticipated when the tool was written.
+
+**Three claims narrowed:**
+
+- `performanceRating` — the docstring asserted it measures execution against the
+  prescription. That was inferred from two identical `GOOD` samples. It now says
+  only that it is a per-workout rating from Garmin Coach, with the scale
+  explicitly unobserved.
+- `performed_at` — confirmed device-local with no zone designator, byte-identical
+  to the activity's `start_time_local` and four hours behind `start_time_gmt`.
+  Documented, since appending `Z` moves an evening session to the next day.
+- `pre_plan_training_pace_seconds` — Garmin sends a bare number. 617 matches this
+  account's measured seconds-per-kilometre almost exactly, yet reading it as
+  seconds-per-mile is what makes the plan's goal coherent (3% improvement rather
+  than 40%). Both reconcile if it is running pace while the recorded averages
+  include walk intervals. Recorded as unresolved, with the experiment that would
+  settle it.
+
+**And one question answered:** `protected` (workout feed) and `benchmark` (ATP
+calendar) are different fields from different services — neither sends the
+other's key. They coincided on the one benchmark observed, which is not evidence
+they are the same flag.
+
+Tests: +2. Result: 783 passed.
+
 ## Three tools from captured traffic — 2026-09-19
 
 Built from a second HAR of Garmin Connect's own web client, this time with the
