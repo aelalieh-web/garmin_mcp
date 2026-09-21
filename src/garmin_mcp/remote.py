@@ -31,7 +31,7 @@ _SECURITY_HEADERS = [
     (
         b"content-security-policy",
         b"default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
-        b"form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+        b"form-action 'self' https://claude.ai; base-uri 'none'; frame-ancestors 'none'",
     ),
     (b"strict-transport-security", b"max-age=31536000"),
 ]
